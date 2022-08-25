@@ -9,25 +9,6 @@ import psycopg2
 
 logging.basicConfig (filename="noctualog.txt", level=logging.DEBUG, format="%(asctime)s %(message)s")
 
-def config(filename='database.ini', section='postgresql'):
-    parser = ConfigParser()
-    parser.read(filename)
-
-    db ={}
-    if parser.has_section(section):
-        params = parser.items(section)
-        for param in params:
-            db[param[0]] = param[1]
-    else:
-        logging.debug("Ya done fucked something up with the connection.")
-    return db
-
-params = config()
-logging.debug("Connecting to POSTGRES SQL ON AWS")
-conn = psycopg2.connect(**params)
-cur = conn.cursor()
-logging.debug(conn.get_dsn_parameters())
-
 #Build Urls for crtsh api
 urlsfromfile = open('wildcards').read().splitlines()
 
@@ -36,7 +17,6 @@ combineCMD1 = "cat assetfinder | anew all"
 combineCMD2 = "cat subs | anew all"
 combineCMD3 = "cat amassout | anew all"
 combineCMD4 = "cat cershdomains | anew all"
-cnameSQL = """INSERT INTO public.cnames(url) VALUES(%s);"""
 
 
 #define functions for commands
@@ -112,13 +92,6 @@ for i in range(2):
 #Probe for Mass Cnames
 for i in range(2):
     massCProcess()
-
-
-masscnamesfromfile = open('masscnames').read().splitlines()
-
-for cname in masscnamesfromfile:
-    cur.execute(cnameSQL, (cname))
-    conn.commit()
 
 # here we call jsminerbot
 # will check the domains file

@@ -27,6 +27,7 @@ logging.debug(conn.get_dsn_parameters())
 
 programSQL = """ SELECT program_name FROM programs """
 wildcardSQL = """SELECT plain_url FROM in_scope WHERE program_name=%s"""
+cnameSQL = """INSERT INTO public.cnames(url) VALUES(%s);"""
 
 homepath = "/Users/hackintosh/pantheon/"
 
@@ -67,3 +68,9 @@ for program in allPrograms:
     os.chdir(homepath)
     os.chdir(useme)
     import Noctua
+
+masscnamesfromfile = open('masscnames').read().splitlines()
+
+for cname in masscnamesfromfile:
+    cur.execute(cnameSQL, (cname))
+    conn.commit()
