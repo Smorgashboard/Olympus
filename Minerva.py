@@ -83,7 +83,7 @@ def evalJSON(burpJSON, programID, programName):
             excludedPlainURL = replace(excludedURLS)
             while dirty:
                 if excludedPlainURL[0] == "-" or excludedPlainURL[0] == "." or excludedPlainURL[0] == "*":
-                    excludedPlainURL= excludedPlainURL[1:]
+                   excludedPlainURL= excludedPlainURL[1:]
                 else:
                     dirty = False
             #Send the id, name, regex url and non regex url to pgsql. Regex url will be used for creating a .scope file and non regex url is for wildcards.

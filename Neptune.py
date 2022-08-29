@@ -16,6 +16,13 @@ from datetime import datetime
 
 logging.basicConfig (filename="NeptuneLog.txt", level=logging.DEBUG, format="%(asctime)s %(message)s")
 
+def replace(text):
+    chars_to_replace = "(),'"
+    for char in chars_to_replace:
+        if char in text:
+            text = text.replace(char, "")
+    return text
+
 def config(filename='database.ini', section='postgresql'):
     parser = ConfigParser()
     parser.read(filename)
@@ -39,13 +46,16 @@ startTime = time.time()
 #turn off warnings because they are useless anyway
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-getcnameSQL = """SELECT * FROM cnames"""
+getcnameSQL = """SELECT url FROM cnames"""
 cur.execute(getcnameSQL)
 cnames = cur.fetchall()
 
 with open("domains", "a") as f:
     for cname in cnames:
-        f.write(cname + "\n")
+        cnamestr = str(cname)
+        cleanstrcname = replace(cnamestr)
+        f.write(cleanstrcname)
+        f.write("\n")
     f.truncate(f.tell()-1)
 
 urlsfromfile = open('domains').read().splitlines()
