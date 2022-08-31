@@ -67,7 +67,7 @@ textToFind = "There is no app configured at that hostname | NoSuchBucket | No Su
 peanutButterJellyTime = True
 httpTime = True
 #40 threads is stable on DO droplet (currently testing 100)
-threads = 100
+threads = 40
 TIMEOUT = 6
 failures = []
 

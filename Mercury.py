@@ -21,7 +21,9 @@ combineCMD4 = "cat cershdomains | anew all"
 programSQL = """ SELECT program_name FROM programs """
 programIDSQL = """SELECT program_id from programs WHERE program_name=%s"""
 wildcardSQL = """SELECT plain_url FROM in_scope WHERE program_name=%s"""
-cnameSQL = """INSERT INTO public.cnames(program_name, program_id, url) VALUES(%s,%s,%s);"""
+cnameSQL = """INSERT INTO public.cnames(program_name, program_id, url, target) VALUES(%s,%s,%s,%s);"""
+nsfailsSQL = """INSERT INTO public.ns_failures(program_name, program_id, servfail) VALUES(%s,%s,%s);"""
+reconSQL = """INSERT INTO public.recon(program_name, program_id, domain) VALUES(%s,%s,%s)"""
 
 #various Variables
 homepath = "/home/kali/pantheon/"
@@ -81,25 +83,33 @@ def assetfinderProcess():
 
 def lookForServFails():
     #this is currently broken Do not use till fixed
-    aRecServFail = []
     massServFailProcess = subprocess.Popen(['massdns', '-r', '/home/kali/tools/dns/resolvers.txt', '-t', 'A', '-s', '15000', '-o', 'J', '-w', 'jsonMass', 'all'])
-    jsonMass = open('jsonMass').read.splitlines()
-    jsondict = json.loads(jsonMass)
-    for item in jsondict:
-        if['status'] == "SERVFAIL":
-            aRecServFail.append(item)
+    
 
-        
+def cnameParsing(programName, programID):
+    time.sleep(20)
+    cnamesfromfile = open('masscnames').read().splitlines()
+    time.sleep(20)
+    targets = []
+    cnames = []
+    for cname in cnamesfromfile:
+        target = cname.split(" ")[2]
+        url = cname.split(" ")[0]
+        target = target[:-1]
+        url = url[:-1]
+        targets.append(target)
+        cnames.append(url)
+        cur.execute(cnameSQL, (programName, programID, url, target))
+        conn.commit()     
 
-def recon():
-    try:
-        urlsfromfile = open('wildcards').read().splitlines()     
-        for i in urlsfromfile:
-            print("Running crtSH for " + i)
-            #call the function to actually do anything
-            crtshDATA(i)
-        else:
-            subprocess.run(combineCMD4, shell = True)
+def uploadRecon(program, program_id):
+    r = open("all").read().splitlines()
+    for x in r:
+        cur.execute(reconSQL, (program, program_id, x))
+        conn.commit()
+
+def recon(program, program_id):
+    try:  
         subFinderProcess()
         amassProcess()
         assetfinderProcess()
@@ -114,6 +124,25 @@ def recon():
 
         for i in range(2):
             massCProcess()
+
+        cnameParsing(program, program_id)
+        time.sleep(20)
+        uploadRecon(program, program_id)
+        time.sleep(20)
+        lookForServFails()
+        time.sleep(20)
+        grepcmd = 'cat jsonMass | grep "SERVFAIL" | anew servfail'
+        combineCMD1Process = subprocess.run(grepcmd, shell = True)
+        sfs =[]
+        serverFails = open('servfail').read().splitlines()
+        time.sleep(10)
+        for serverfail in serverFails:
+            sf = serverfail.split('"')[3]
+            sf = sf[:-1]
+            sfs.append(sf)   
+            cur.execute(nsfailsSQL, (program, program_id, sf))
+            conn.commit()
+            
     except OSError:
             logging.debug("No wildcards file")
 
@@ -123,24 +152,6 @@ def replace(text):
         if char in text:
             text = text.replace(char, "")
     return text
-
-def crtshDATA(url):
-    try:
-        crtshResponse = json.dumps(crtshAPI().search(url))
-        json_tree = json.loads(crtshResponse)
-        #iterate through json and pull out name_value which should be the domain names covered by the SSL Cert... Should...
-        for element in json_tree:
-            # the reason this wasnt (but still isnt for some unknown reason) working is because its checking to see if element in json_tree is in domains not name_value
-            # ignore the comment above we are now working 95% still getting 1-2 dupes but i dont think that matters
-            if (element['name_value'] not in domains):
-                domains.append(element['name_value'])
-        # write domains from json to file called cershdomains
-        with open('cershdomains', 'w') as f:
-            for line in domains:   
-                f.write(line + "\n" )
-    except TypeError:
-        logging.debug("There was a Type Error!")
-
 
 #Retrieve All Programs from SQL
 cur.execute(programSQL)
@@ -175,13 +186,6 @@ for program in allPrograms:
     useme = replace(cleanstr)
     os.chdir(homepath)
     os.chdir(useme)
-    recon()
-    masscnamesfromfile = open('botdomains').read().splitlines()
+    recon(useme, program_id)
     time.sleep(60)
-    #update CNAME table with found cnames
-    for cname in masscnamesfromfile:
-        program = program
-        program_id = program_id
-        cur.execute(cnameSQL, (program, program_id, cname))
-        conn.commit()
-    time.sleep(60)
+    

@@ -9,26 +9,19 @@ logging.basicConfig (filename="mercuryLog.txt", level=logging.DEBUG, format="%(a
 aRecServFail = []
 
 def lookForServFails():
-    massServFailProcess = subprocess.Popen(['massdns', '-r', '/home/kali/tools/dns/resolvers.txt', '-t', 'A', '-s', '15000', '-o', 'J', '-w', 'jsonMass', 'all'])
-    logging.debug("starting json")
-    jsonMass = open('jsonMass').read().splitlines()
-    logging.debug(jsonMass)
-    jsondict = json.loads(jsonMass)
-    for item in jsondict:
-        if ['status'] == "SERVFAIL":
-            aRecServFail.append(item)
-    print(aRecServFail)
+    #massServFailProcess = subprocess.Popen(['massdns', '-r', '/home/kali/tools/dns/resolvers.txt', '-t', 'A', '-s', '15000', '-o', 'J', '-w', 'jsonMass', 'all'])
+    grepcmd = 'cat jsonMass | grep "SERVFAIL" | tee -a servfail '
+    combineCMD1Process = subprocess.run(grepcmd, shell = True)
+    sfs =[]
+    serverFails = open('servfail').read().splitlines()
+    for serverfail in serverFails:
+        print("printing serverfail in serverFails:")
+        print(serverfail)
+        sf = serverfail.split('"')[3]
+        sf = sf[:-1]
+        print(sf)
+        sfs.append(sf)
+    #print(sfs)
 
-def loadJson():
-    f = open('jsonMass')
-    data = json.load(f)
-    for item in data:
-        #print(item)
-        if ['status'] == "NOERROR":
-            print(item)
-            aRecServFail.append(item)
-    print(aRecServFail)
 
-loadJson()
-
-#lookForServFails()
+lookForServFails()
