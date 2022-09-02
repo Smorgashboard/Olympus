@@ -9,6 +9,8 @@ import logging
 from configparser import ConfigParser
 import psycopg2
 import time
+import subprocess
+from subprocess import PIPE
 from datetime import datetime
 
 
@@ -42,13 +44,18 @@ conn = psycopg2.connect(**params)
 cur = conn.cursor()
 logging.debug(conn.get_dsn_parameters())
 
+def clean():
+    cleanitcmd = "cat domains | anew useme" 
+    cleanCMD = subprocess.run(cleanitcmd)
+
 startTime = time.time()
 #turn off warnings because they are useless anyway
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-getcnameSQL = """SELECT url FROM cnames"""
+getcnameSQL = """SELECT target FROM cnames"""
 cur.execute(getcnameSQL)
 cnames = cur.fetchall()
+time.sleep(30)
 
 with open("domains", "a") as f:
     for cname in cnames:
@@ -58,16 +65,17 @@ with open("domains", "a") as f:
         f.write("\n")
     f.truncate(f.tell()-1)
 
-urlsfromfile = open('domains').read().splitlines()
+time.sleep(20)
+
+clean()
+
+urlsfromfile = open('useme').read().splitlines()
 urls = ['https://{}'.format(x) for x in urlsfromfile[0:]]
 # Specifiy the Text to search the responses for
 textToFind = "There is no app configured at that hostname | NoSuchBucket | No Such Account | You're Almost There | a GitHub Pages site here | There's nothing here | project not found | Your CNAME settings | InvalidBucketName | PermanentRedirect | The specified bucket does not exist | Repository not found | Sorry, We Couldn't Find That Page | The feed has not been found. | The thing you were looking for is no longer here, or never was | Please renew your subscription | There isn't a Github Pages site here. | We could not find what you're looking for. | No settings were found for this company: | No such app | is not a registered InCloud YouTrack | Unrecognized domain | project not found | Web Site Not Found | Sorry, this page is no longer available | If this is your website and you've just created it, try refreshing in a minute | Trying to access your account? | Fastly error: unknown domain: | 404 Blog is not found | Uh oh. That page doesn't exist. | No Site For Domain | It looks like you’re lost... | It looks like you may have taken a wrong turn somewhere. Don't worry...it happens to all of us. | Not Found - Request ID: | Tunnel *.ngrok.io not found | 404 error unknown site! | Sorry, couldn't find the status page | Project doesnt exist... yet! | Sorry, this shop is currently unavailable. | Link does not exist | This job board website is either expired or its domain name is invalid. | Domain is not configured | Whatever you were looking for doesn't currently exist at this address | Non-hub domain, The URL you've accessed does not provide a hub. | Please renew your subscription | Looks Like This Domain Isn't Connected To A Website Yet! | Do you want to register *.wordpress.com? | Hello! Sorry, but the website you&rsquo;re looking for doesn&rsquo;t exist. | This UserVoice subdomain is currently available! | 404 Web Site not found | domain has not been configured | Do you want to register | Help Center Closed"
 
-#Conner named this variable
-peanutButterJellyTime = True
-httpTime = True
 #40 threads is stable on DO droplet (currently testing 100)
-threads = 40
+threads = 100
 TIMEOUT = 6
 failures = []
 
@@ -98,7 +106,7 @@ def slack_send(i):
         raise Exception(response.status_code, response.text)
 
 def httpTry(url, timeout):
-    global httpTime
+    httpTime = True
     global failures
     global textToFind
     while(httpTime):
@@ -116,7 +124,8 @@ def httpTry(url, timeout):
 
 def load_url(url, timeout):
     global failures
-    global peanutButterJellyTime
+    #Conner named this variable
+    peanutButterJellyTime = True
     global textToFind
     try:
         request = requests.get(url, verify=False, timeout=timeout)
@@ -162,10 +171,19 @@ with concurrent.futures.ThreadPoolExecutor(max_workers=threads) as executor:
 now = datetime.now()
 date_time = now.strftime("%m/%d/%Y, %H:%M:%S")
 executionTime = (time.time() - startTime)
-logging.debug("There were", + len(failures), "missed targets, and the script took ", str(executionTime))
-logging.debug("The script completed at", date_time)
+#logging.debug("There were", + len(failures), "missed targets, and the script took ", str(executionTime))
+#logging.debug("The script completed at", date_time)
+logging.debug("Script Completed")
+logging.debug(executionTime)
 
 #Better Logging
 with open("failures.txt", "w") as f:
     for item in failures:
         f.write("%s\n" % item)
+
+rmCMD1 = "rm domains"
+rmCMD2 = "rm useme"
+
+rmCMDprocess1 = subprocess.run(rmCMD1, shell = True)
+time.sleep(4)
+rmCMDprocess2 = subprocess.run(rmCMD2, shell = True)
