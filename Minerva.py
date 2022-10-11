@@ -1,4 +1,5 @@
 from configparser import ConfigParser
+from genericpath import exists
 import logging
 import json
 from random import randint, random
@@ -14,7 +15,7 @@ from selenium.common.exceptions import NoSuchElementException
 import psycopg2
 from urllib.parse import unquote
 
-logging.basicConfig (filename="athenalog.txt", level=logging.DEBUG, format="%(asctime)s %(message)s")
+logging.basicConfig (filename="minervalog.txt", level=logging.DEBUG, format="%(asctime)s %(message)s")
 
 def config(filename='database.ini', section='postgresql'):
     parser = ConfigParser()
@@ -34,11 +35,13 @@ logging.debug("Connecting to POSTGRES SQL ON AWS")
 conn = psycopg2.connect(**params)
 cur = conn.cursor()
 logging.debug(conn.get_dsn_parameters())
-        
+
+cheapoSQL = """INSERT INTO public.cheap_programs(program_id, program_name, program_url, burp_exists) VALUES(%s,%s,%s,%s);"""        
 programSQL = """INSERT INTO public.programs(program_id, program_name, program_url, burp_exists) VALUES(%s,%s,%s,%s);"""
 checkInScopeURLSQL = """SELECT plain_url FROM in_scope"""
 checkOutOfScopeURLSQL = """SELECT plain_url FROM out_of_scope"""
 getProgramIdSQL = """SELECT program_id FROM programs WHERE programs.program_name=%s"""
+getCheapoProgramIdSQL = """SELECT program_id FROM programs WHERE programs.cheap_programs=%s"""
 
 fireFoxOptions = Options()
 fireFoxOptions.headless = True
@@ -50,6 +53,7 @@ wait = WebDriverWait(driver, 10)
 time.sleep(10)
 
 programURLS = []
+cheapos = []
 
 def replace(text):
     chars_to_replace = "\*^$"
@@ -58,11 +62,13 @@ def replace(text):
             text = text.replace(char, "")
     return text
 
+
 #Step One scroll to the bottom
 def ShawtyAreYouDown():
     moretoscroll = True
     while moretoscroll:
-        if driver.find_elements(By.XPATH, '/html/body/div[2]/div[4]/div/div[2]/div/div[2]/div/div/p/a'):
+        if driver.find_elements(By.XPATH, '/html/body/div[2]/div/main/div[3]/div/div[2]/div/div[2]/div/div/p/a'):
+            logging.debug("Found the bottom")
             moretoscroll = False
         else:
             driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
@@ -118,7 +124,7 @@ def evalJSON(burpJSON, programID, programName):
         
 def gatherIntel(url, cur):
     time.sleep(15)
-    programName = driver.find_element(By.XPATH, "/html/body/div[2]/div[2]/div[1]/div/div/div/div/div/div/div/div/div/div/div[1]/div/div[2]/div[1]/div/h1").get_attribute('innerText')
+    programName = driver.find_element(By.XPATH, "/html/body/div[2]/div/main/div[1]/div[1]/div/div/div/div/div/div/div/div/div/div/div[1]/div/div[2]/div[1]/div/h1").get_attribute('innerText')
     programURL = url
     logging.debug(programName)
     cur.execute('SELECT program_name FROM programs')
@@ -181,11 +187,87 @@ def gatherIntel(url, cur):
                 else:
                     id1 = random.randint(10000, 99999)
 
+def gatherCheapIntel(url, cur):
+    time.sleep(15)
+    programName = driver.find_element(By.XPATH, "/html/body/div[2]/div/main/div[1]/div[1]/div/div/div/div/div/div/div/div/div/div/div[1]/div/div[2]/div[1]/div/h1").get_attribute('innerText')
+    programURL = url
+    logging.debug(programName)
+    cur.execute('SELECT program_name FROM cheap_programs')
+    exists = cur.fetchall()
+    tryagain = True
+    try:
+        burpFile = driver.find_element(By.XPATH,"//a[contains(text(), 'Download Burp Suite Project Configuration File')]")
+    except NoSuchElementException:
+        burpFile = None
+    # This next section gets wonky. Probably can cleanup later. However step one is check for burp suite config file.
+    #Burp file exists 
+    if burpFile != None:
+        if any(programName in x for x in exists):
+            #burp exists and program already is in sql - this is where we would check for scope changes
+            cur.execute(getCheapoProgramIdSQL, (programName,))
+            programID = cur.fetchone()
+            burpJSON = unquote(burpFile.get_attribute("href"))
+            evalJSON(burpJSON, programID, programName)
+            logging.debug("program exists")
+        else:
+            #burp exists and program is not in SQL - This is for new programs
+            #generate an random ID number and check it
+            lookingForIDNumber = True
+            burpBoolean = True
+            id1 = randint(1000, 9999)
+            cur.execute('SELECT program_id from cheap_programs')
+            ids = cur.fetchall()
+            while lookingForIDNumber: 
+                if id1 not in ids:
+                    #if random number isn't taken execute the SQL to update the programs table with info
+                    programID = id1
+                    cur.execute(cheapoSQL, (programID,programName,programURL,burpBoolean))
+                    conn.commit()
+                    lookingForIDNumber = False
+                    #end our search for ids and call evalJSON to read the burp config and update in/out of scope tables
+                    burpJSON = unquote(burpFile.get_attribute("href"))
+                    evalJSON(burpJSON, programID, programName)
+                else:
+                    # random number was taken so restart the loop
+                    id1 = random.randint(1000, 9999)
+    #no burp config files
+    else:
+        if any(programName in x for x in exists):
+            #program was already in SQL and theres no burp file so do nothing else.
+            logging.debug("program exists")
+        else:
+            #program does not have burp file but it doesnt exist in SQL
+            lookingForIDNumber = True
+            burpBOOLFALSE = False
+            id1 = randint(1000, 9999)
+            cur.execute('SELECT program_id from cheap_programs')
+            ids = cur.fetchall()
+            while lookingForIDNumber: 
+                if id1 not in ids:
+                    programID = id1
+                    # Add to SQL but dont call json evaluation
+                    cur.execute(cheapoSQL, (programID,programName,programURL, burpBOOLFALSE))
+                    conn.commit()
+                    lookingForIDNumber = False
+                else:
+                    id1 = random.randint(1000, 9999)
+
 def gatherAll():
-    programs = driver.find_elements(By.CSS_SELECTOR, "html body.js-application.controller_directory.action_index._layout.signed-out div.js-application-root.full-size div.daisy-grid.daisy-grid--has-outside-gutter div.daisy-grid__row.daisy-grid__row--has-gutter div.daisy-grid__column div.card div div.infinite-scroll-component__outerdiv div.infinite-scroll-component table.daisy-table tbody.daisy-table-body tr.spec-directory-entry.daisy-table__row.fade.fade--show td.daisy-table__cell div.sc-gsnTZi.bKAToT div.sc-gsnTZi.iBoIkk div.sc-gsnTZi.jnnUyh div span strong span a.daisy-link.routerlink.daisy-link--major.spec-profile-name")
+    programs = driver.find_elements(By.CSS_SELECTOR, "html body.js-application.controller_directory.action_index._layout.signed-out div.js-application-root.full-size div.app_shell main.app_shell__content div.daisy-grid.daisy-grid--has-outside-gutter div.daisy-grid__row.daisy-grid__row--has-gutter div.daisy-grid__column div.card div div.infinite-scroll-component__outerdiv div.infinite-scroll-component table.daisy-table tbody.daisy-table-body tr.spec-directory-entry.daisy-table__row.fade.fade--show td.daisy-table__cell div.sc-bczRLJ.juxDLZ div.sc-bczRLJ.kuXVOq div.sc-bczRLJ.bjVIKL div span strong span a.daisy-link.routerlink.daisy-link--major.spec-profile-name")
     for p in programs:
         link = p.get_attribute("href")
         programURLS.append(link)
+
+def cheapo():
+    driver.get("https://hackerone.com/directory/programs?order_direction=DESC&order_field=laun")
+    ShawtyAreYouDown()
+    cheapoprograms = driver.find_elements(By.CSS_SELECTOR, "html body.js-application.controller_directory.action_index._layout.signed-out div.js-application-root.full-size div.app_shell main.app_shell__content div.daisy-grid.daisy-grid--has-outside-gutter div.daisy-grid__row.daisy-grid__row--has-gutter div.daisy-grid__column div.card div div.infinite-scroll-component__outerdiv div.infinite-scroll-component table.daisy-table tbody.daisy-table-body tr.spec-directory-entry.daisy-table__row.fade.fade--show td.daisy-table__cell div.sc-bczRLJ.juxDLZ div.sc-bczRLJ.kuXVOq div.sc-bczRLJ.bjVIKL div span strong span a.daisy-link.routerlink.daisy-link--major.spec-profile-name")
+    for p in cheapoprograms:
+        link = p.get_attribute("href")
+        if any(link in x for x in programURLS):
+            logging.debug(f"{link} ain't cheap")
+        else:
+            cheapos.append(link)
         
 ShawtyAreYouDown()
 gatherAll()
@@ -195,3 +277,9 @@ logging.debug(count)
 for url in programURLS:
     driver.get(url)
     gatherIntel(url, cur)
+
+cheapo()
+
+for url in cheapos:
+    driver.get(url)
+    gatherCheapIntel(url, cur)
