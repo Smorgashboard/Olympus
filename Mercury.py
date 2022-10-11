@@ -5,7 +5,6 @@ import os
 import time
 import subprocess
 import json
-from crtsh import crtshAPI
 from subprocess import Popen, PIPE 
 
 #Start Logging
@@ -15,15 +14,16 @@ logging.basicConfig (filename="mercuryLog.txt", level=logging.DEBUG, format="%(a
 combineCMD1 = "cat assetfinder | anew all"
 combineCMD2 = "cat subs | anew all"
 combineCMD3 = "cat amassout | anew all"
-combineCMD4 = "cat cershdomains | anew all"
 
 #SQL STATEMENTS
 programSQL = """ SELECT program_name FROM programs """
 programIDSQL = """SELECT program_id from programs WHERE program_name=%s"""
 wildcardSQL = """SELECT plain_url FROM in_scope WHERE program_name=%s"""
-cnameSQL = """INSERT INTO public.cnames(program_name, program_id, url, target) VALUES(%s,%s,%s,%s);"""
-nsfailsSQL = """INSERT INTO public.ns_failures(program_name, program_id, servfail) VALUES(%s,%s,%s);"""
-reconSQL = """INSERT INTO public.recon(program_name, program_id, domain) VALUES(%s,%s,%s)"""
+cnameSQL = """INSERT INTO public.cnames(program_name, program_id, url, target) VALUES(%s,%s,%s,%s) ON CONFLICT (target) DO UPDATE SET (program_name, program_id, url, target) = (EXCLUDED.program_name, EXCLUDED.program_id, EXCLUDED.url, EXCLUDED.target);"""
+nsfailsSQL = """INSERT INTO public.ns_failures(program_name, program_id, servfail) VALUES(%s,%s,%s) ON CONFLICT (servfail) DO UPDATE SET (program_name, program_id, servfail) = (EXCLUDED.program_name, EXCLUDED.program_id, EXCLUDED.servfail);"""
+nxfailsSQL = """INSERT INTO public.nx_failures(program_name, program_id, servfail) VALUES(%s,%s,%s) ON CONFLICT (servfail) DO UPDATE SET (program_name, program_id, servfail) = (EXCLUDED.program_name, EXCLUDED.program_id, EXCLUDED.servfail);"""
+reconSQL = """INSERT INTO public.recon(program_name, program_id, domain) VALUES(%s,%s,%s) ON CONFLICT (domain) DO UPDATE SET (program_name, program_id, domain) = (EXCLUDED.program_name, EXCLUDED.program_id, EXCLUDED.domain);"""
+reconTheseSQL = """ SELECT program_name FROM programs WHERE burp_exists='true' """
 
 #various Variables
 homepath = "/home/kali/pantheon/"
@@ -142,7 +142,19 @@ def recon(program, program_id):
             sfs.append(sf)   
             cur.execute(nsfailsSQL, (program, program_id, sf))
             conn.commit()
-            
+        time.sleep(10)
+        grep2cmd = 'cat jsonMass | grep "NXDOMAIN" | anew nxdomains'
+        cCMD = subprocess.run(grep2cmd, shell = True)
+        nxds = []
+        nxdomains = open('nxdomains').read().splitlines()
+        time.sleep(10)
+        for nxdomain in nxdomains:
+            nx = nxdomain.split('"')[3]
+            nx = nx[:-1]
+            nxds.append(nx)   
+            cur.execute(nxfailsSQL, (program, program_id, nx))
+            conn.commit()
+
     except OSError:
             logging.debug("No wildcards file")
 
@@ -168,6 +180,8 @@ for program in allPrograms:
     cur.execute(wildcardSQL, (useme,))
     urls = cur.fetchall()
     os.chdir(useme)
+    if os.path.exists("wildcards"):
+        os.remove("wildcards")
     with open("wildcards", 'a') as f:
         try:
             for url in urls:
@@ -177,15 +191,23 @@ for program in allPrograms:
                 f.write(useurl + "\n")
             f.truncate(f.tell()-1)
         except OSError:
+            logging.debug(useme)
             logging.debug("No urls")
 
-for program in allPrograms:
-    cur.execute(programIDSQL,(program,))
-    program_id = cur.fetchone()
+cur.execute(reconTheseSQL)
+programsToBeReconed = cur.fetchall()
+
+for program in programsToBeReconed:
     cleanstr = str(program)
     useme = replace(cleanstr)
     os.chdir(homepath)
     os.chdir(useme)
+    logging.debug(useme)
+    logging.debug("running recon")
+    cur.execute(programIDSQL,(program,))
+    program_id = cur.fetchone()
+    time.sleep(5)
     recon(useme, program_id)
-    time.sleep(60)
+    time.sleep(20)
     
+        
