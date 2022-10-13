@@ -12,3 +12,7 @@ NeptuneLog.txt
 geckodriver.log
 failures.txt
 athenalog.txt
+minervalog.txt
+jsonMass
+database.ini
+

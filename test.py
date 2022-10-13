@@ -1,22 +1,28 @@
-from ssl import SSL_ERROR_EOF, SSLError
-import requests
-import re
-import json
-import concurrent.futures
-import sys
-import urllib3
 import logging
 from configparser import ConfigParser
 import psycopg2
+import dns
+import dns.resolver
+import dns.rdatatype
+import dns.rdata
+import dns.rdtypes
 import time
-import subprocess
-from subprocess import PIPE
-from datetime import datetime
+import concurrent.futures
 
-sfs =[]
+dns.resolver.default_resolver = dns.resolver.Resolver(configure=False)
+dns.resolver.default_resolver.nameservers = ['8.8.8.8', '2001:4860:4860::8888', '8.8.4.4', '2001:4860:4860::8844']
+badideaSQL= """SELECT * from ns_failures"""
 
-logging.basicConfig (filename="test.txt", level=logging.DEBUG, format="%(asctime)s %(message)s")
-#####Version 1.5 ###########
+threads = 60
+sfs = []
+nxds = []
+naws = []
+live = []
+cnames = []
+servfails = ['help.simpletax.ca','epicgames.com', 'google.com', 'amazon.com', 'sftp.cornershop.io']
+
+logging.basicConfig (filename="plutolog.txt", level=logging.DEBUG, format="%(asctime)s %(message)s")
+logging.basicConfig (filename="plutolog.txt", level=logging.DEBUG, format="%(asctime)s %(message)s")
 
 def replace(text):
     chars_to_replace = "(),'"
@@ -38,27 +44,46 @@ def config(filename='database.ini', section='postgresql'):
         logging.debug("Ya done fucked something up with the connection.")
     return db
 
+def update_SQL(cname):
+    print("imma do something cool someday")
+
 params = config()
 logging.debug("Connecting to POSTGRES SQL ON AWS")
 conn = psycopg2.connect(**params)
 cur = conn.cursor()
 logging.debug(conn.get_dsn_parameters())
 
-getSQL = """SELECT servfail from nx_failures"""
-
-cur.execute(getSQL)
-servfails = cur.fetchall()
+cur.execute(badideaSQL)
+servDict = cur.fetchall()
 time.sleep(60)
+print(servDict[1])
 
-for servfail in servfails:
+
+def q_dns(servfail):
     clean = str(servfail)
     cleanstr = replace(clean)
-    sfs.append(cleanstr)
-    
-with open("search", "a") as f:
-    for sf in sfs:
-        clean = str(sf)
-        cleanstr = replace(clean)
-        f.write(cleanstr)
-        f.write("\n")
-    f.truncate(f.tell()-1)
+    try:
+        result = dns.resolver.resolve(cleanstr, 'CNAME')
+        rd = dns.rdatatype.to_text(result.rdtype)
+        print(rd)
+        for ipval in result:
+            if ipval == None:
+                logging.debug(result)
+            else:
+                if dns.rdatatype.to_text(result.rdtype) == 'CNAME':
+                    cnames.append(cleanstr)
+                else:
+                    live.append(cleanstr)
+    except dns.resolver.NoAnswer:
+        naws.append(cleanstr)
+        print("noanswer")
+    except dns.resolver.NXDOMAIN:
+        nxds.append(cleanstr)
+        print("nxdomain")
+    except dns.resolver.NoNameservers:
+        sfs.append(cleanstr)
+        print("something else")
+    except:
+        logging.debug(cleanstr)
+        logging.debug("Timed Out")
+

@@ -259,6 +259,7 @@ def gatherAll():
         programURLS.append(link)
 
 def cheapo():
+    print("checking the cheap ass programs")
     driver.get("https://hackerone.com/directory/programs?order_direction=DESC&order_field=laun")
     ShawtyAreYouDown()
     cheapoprograms = driver.find_elements(By.CSS_SELECTOR, "html body.js-application.controller_directory.action_index._layout.signed-out div.js-application-root.full-size div.app_shell main.app_shell__content div.daisy-grid.daisy-grid--has-outside-gutter div.daisy-grid__row.daisy-grid__row--has-gutter div.daisy-grid__column div.card div div.infinite-scroll-component__outerdiv div.infinite-scroll-component table.daisy-table tbody.daisy-table-body tr.spec-directory-entry.daisy-table__row.fade.fade--show td.daisy-table__cell div.sc-bczRLJ.juxDLZ div.sc-bczRLJ.kuXVOq div.sc-bczRLJ.bjVIKL div span strong span a.daisy-link.routerlink.daisy-link--major.spec-profile-name")

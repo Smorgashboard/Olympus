@@ -66,11 +66,23 @@ makeMyLifeEasierSQL = """SELECT url FROM cnames WHERE target=%s"""
 makeMyLifeEasierSQL2 = """SELECT program_name FROM cnames WHERE target=%s"""
 makeMyLifeEasierSQL3 = """SELECT program_id FROM cnames WHERE target=%s"""
 alertedSQL = """SELECT alerted FROM found_subs WHERE target=%s"""
+getMoreCnameSQL = """SELECT url FROM more_cnames """
 cur.execute(getcnameSQL)
 cnames = cur.fetchall()
 time.sleep(30)
 
 for cname in cnames:
+    cnamestr = str(cname)
+    cleanstrcname = replace(cnamestr)
+    targets.append(cleanstrcname)
+
+time.sleep(20)
+
+cur.execute(getMoreCnameSQL)
+cnames2 = cur.fetchall()
+time.sleep(10)
+
+for cname in cnames2:
     cnamestr = str(cname)
     cleanstrcname = replace(cnamestr)
     targets.append(cleanstrcname)
@@ -113,10 +125,10 @@ def slack_send(i):
     if response.status_code != 200:
         raise Exception(response.status_code, response.text)
 
-def success_slack(i):
+def success_slack(i, info):
     url = "https://hooks.slack.com/services/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"
     title = (f"Possible Hit")
-    message = i + " You son of a bitch, I'm in." 
+    message = i + " You son of a bitch, I'm in." + info
     slack_data = {
         "username": "SubBot",
         "icon_emoji": ":sub3:",
@@ -140,14 +152,17 @@ def success_slack(i):
         raise Exception(response.status_code, response.text)
 
 def should_I_Alert(target):
-    target2 = strip_fastly(target)
     try:
-        cur.execute(alertedSQL, (target2,))
-        alerted = cur.fetechall()
+        cur.execute(alertedSQL, (target,))
+        alerted = cur.fetchone()
         time.sleep(2)
-        print(alerted)
-        if alerted == True:
-            print("already Alerted")
+        if alerted is not None:
+            if alerted[0] == True:
+                print("already Alerted")
+            else:
+                slack_send(target)
+                booly = True
+                update_SQL(target, booly)
         else:
             slack_send(target)
             booly = True
@@ -157,16 +172,15 @@ def should_I_Alert(target):
         booly = True
         update_SQL(target, booly)
 
-
 def update_SQL(target, booly):
     cur.execute(makeMyLifeEasierSQL, (target,))
-    turl = cur.fetchall()
+    turl = cur.fetchone()
     time.sleep(2)
     cur.execute(makeMyLifeEasierSQL2, (target,))
-    programNAME = cur.fetchall()
+    programNAME = cur.fetchone()
     time.sleep(2)
     cur.execute(makeMyLifeEasierSQL3, (target,))
-    programID = cur.fetchall()
+    programID = cur.fetchone()
     time.sleep(2)
     cur.execute(insertFoundSQL, (programNAME,programID,turl,booly,target))
     conn.commit()
@@ -181,12 +195,13 @@ def check_github(url):
     super_secret_github_token = "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"
     api_call = requests.get(github_request_url, verify=False, timeout=TIMEOUT, headers={'Accept' : 'application/vnd.github+json', 'Authorization' : 'Bearer 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'})
     if(re.search("Not Found", api_call.text)):
-        success_slack(url)
+        success_slack(url, username)
     else:
         logging.debug(f"{username} already exists")
 
 def check_fastly(url):
     clean_url = strip_fastly(url)
+    successful = "FastlyTakes"
     with fastly.ApiClient(configuration) as api_client:
         api_instance = domain_api.DomainApi(api_client)
         options = {
@@ -197,7 +212,7 @@ def check_fastly(url):
         options['name'] = clean_url
     try:
         api_response = api_instance.create_domain(**options)
-        success_slack(clean_url)
+        success_slack(clean_url,successful)
     except fastly.ApiException as e:
         logging.debug("Exception when calling DomainApi->create_domain: %s\n" % e)
 
@@ -227,6 +242,7 @@ def httpTry(url, timeout):
             break
 
 def load_url(url, timeout):
+    print(url)
     global failures
     global hits
     #Conner named this variable
