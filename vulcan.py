@@ -45,3 +45,8 @@ with concurrent.futures.ThreadPoolExecutor() as executor:
             print(f"Downloaded {file}")
         except Exception as exc:
             print(f"{file} generated an exception: {exc}")
+            
+for link in visited_urls:
+    with open("Links", "wb") as l:
+        l.write(link)            
+            
