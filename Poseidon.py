@@ -13,7 +13,7 @@ import fastly
 from fastly.api import domain_api
 
 configuration = fastly.Configuration()
-configuration.api_token = 'uetVvm9u7WCfALxNEJQ3mlvmFSkenBrD'
+configuration.api_token = ''
 
 #####Version 1.6 ###########
 
