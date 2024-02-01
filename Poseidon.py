@@ -193,7 +193,7 @@ def check_github(url):
     username = github_username_creation(url)
     github_request_url = f"https://api.github.com/users/{username}"
     super_secret_github_token = ""
-    api_call = requests.get(github_request_url, verify=False, timeout=TIMEOUT, headers={'Accept' : 'application/vnd.github+json', 'Authorization' : 'Bearer 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'})
+    api_call = requests.get(github_request_url, verify=False, timeout=TIMEOUT, headers={'Accept' : 'application/vnd.github+json', 'Authorization' : 'Bearer ''})
     if(re.search("Not Found", api_call.text)):
         success_slack(url, username)
     else:
