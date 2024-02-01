@@ -127,7 +127,7 @@ def mercuryReplace(text):
 
 #Slack Messaging function
 def slack_send(i):
-    url = "https://hooks.slack.com/services/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"
+    url = ""
     title = (f"Possible Hit")
     #fix this to concatenate strings
     message = i
