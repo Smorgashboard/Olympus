@@ -166,7 +166,7 @@ def check_github(url):
     global TIMEOUT
     username = github_username_creation(url)
     github_request_url = f"https://api.github.com/users/{username}"
-    super_secret_github_token = "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"
+    super_secret_github_token = ""
     api_call = requests.get(github_request_url, verify=False, timeout=TIMEOUT, headers={'Accept' : 'application/vnd.github+json', 'Authorization' : ''})
     if(re.search("Not Found", api_call.text)):
         success_slack(url)
@@ -180,7 +180,7 @@ def check_fastly(url):
     with fastly.ApiClient(configuration) as api_client:
         api_instance = domain_api.DomainApi(api_client)
         options = {
-            'service_id': '4N9Euaa9URB5jruymfddbF',
+            'service_id': '',
             'version_id': 1,
             'name': 'www.example.com',
         }
