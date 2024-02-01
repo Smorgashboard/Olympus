@@ -100,7 +100,7 @@ failures = []
 hits = []
 
 def slack_send(i):
-    url = "https://hooks.slack.com/services/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"
+    url = ""
     title = (f"Possible Hit")
     message = i 
     slack_data = {
@@ -126,7 +126,7 @@ def slack_send(i):
         raise Exception(response.status_code, response.text)
 
 def success_slack(i, info):
-    url = "https://hooks.slack.com/services/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"
+    url = ""
     title = (f"Possible Hit")
     message = i + " You son of a bitch, I'm in." + info
     slack_data = {
@@ -192,7 +192,7 @@ def check_github(url):
     global TIMEOUT
     username = github_username_creation(url)
     github_request_url = f"https://api.github.com/users/{username}"
-    super_secret_github_token = "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"
+    super_secret_github_token = ""
     api_call = requests.get(github_request_url, verify=False, timeout=TIMEOUT, headers={'Accept' : 'application/vnd.github+json', 'Authorization' : 'Bearer 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'})
     if(re.search("Not Found", api_call.text)):
         success_slack(url, username)
@@ -205,7 +205,7 @@ def check_fastly(url):
     with fastly.ApiClient(configuration) as api_client:
         api_instance = domain_api.DomainApi(api_client)
         options = {
-            'service_id': '4N9Euaa9URB5jruymfddbF',
+            'service_id': '',
             'version_id': 1,
             'name': 'www.example.com',
         }
