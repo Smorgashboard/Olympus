@@ -114,7 +114,7 @@ def slack_send(i, pattern):
         raise Exception(response.status_code, response.text)
 
 def success_slack(i):
-    url = "https://hooks.slack.com/services/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"
+    url = ""
     title = (f"Possible Hit")
     message = i + " You son of a bitch, I'm in." 
     slack_data = {
